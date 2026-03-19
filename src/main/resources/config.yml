@@ -1,0 +1,65 @@
+# ╔═══════════════════════════════════════╗
+# ║           Aztree Configuration        ║
+# ║        Smart TreeCapitator Plugin     ║
+# ╚═══════════════════════════════════════╝
+
+prefix: "&8[&aAztree&8] "
+
+aztree:
+  # Master switch for the plugin
+  enabled: true
+
+  # Require player to be sneaking to activate TreeCapitator
+  require-sneak: true
+
+  # Maximum number of blocks to break per tree
+  max-blocks: 100
+
+  # Horizontal scan radius for BFS
+  radius: 6
+
+  # Maximum horizontal distance from origin block
+  max-distance: 6
+
+  # How many blocks to break per server tick (lower = smoother, higher = faster)
+  blocks-per-tick: 10
+
+  # Cooldown in seconds between uses
+  cooldown: 2
+
+  # Enable smart tree detection (requires leaves + vertical structure)
+  smart-detection: true
+
+replant:
+  # Auto-replant a sapling after tree is fully broken
+  enabled: true
+
+  # Chance (%) to replant sapling (1-100)
+  chance: 100
+
+reminder:
+  # Send periodic reminders to players who have Aztree enabled
+  enabled: true
+
+  # Interval in seconds between reminders
+  interval: 5
+
+  # Type: 'actionbar' or 'chat'
+  type: actionbar
+
+  # Message to send (&-color codes supported)
+  message: "&aAztree AKTIF! &7(Jongkok untuk digunakan)"
+
+effects:
+  # Play wood break sound when breaking tree blocks
+  sound: true
+
+  # Spawn block crack particles when breaking tree blocks
+  particle: true
+
+messages:
+  enable: "%prefix%&aAztree diaktifkan!"
+  disable: "%prefix%&cAztree dimatikan!"
+  need-sneak: "%prefix%&eKamu harus jongkok!"
+  cooldown: "%prefix%&cTunggu &e%time% detik&c!"
+  not-tree: "%prefix%&cIni bukan pohon!"
