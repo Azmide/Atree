@@ -104,7 +104,7 @@ public class ConfigManager {
         return text;
     }
 
-    // ── Getters ──────────────────────────────────────────────────────────────
+    // Getters
 
     public boolean isAztreeEnabled() { return aztreeEnabled; }
     public boolean isRequireSneak() { return requireSneak; }

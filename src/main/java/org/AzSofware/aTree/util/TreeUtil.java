@@ -11,31 +11,31 @@ public final class TreeUtil {
     private TreeUtil() {}
 
     public static final Set<Material> LOG_MATERIALS = EnumSet.of(
-            // ── Overworld logs ─────────────────────────────────────────────
+            // Overworld logs
             Material.OAK_LOG,       Material.SPRUCE_LOG,    Material.BIRCH_LOG,
             Material.JUNGLE_LOG,    Material.ACACIA_LOG,    Material.DARK_OAK_LOG,
             Material.CHERRY_LOG,    Material.MANGROVE_LOG,  Material.PALE_OAK_LOG,
 
-            // ── Stripped logs ───────────────────────────────────────────────
+            // Stripped logs
             Material.STRIPPED_OAK_LOG,      Material.STRIPPED_SPRUCE_LOG,
             Material.STRIPPED_BIRCH_LOG,    Material.STRIPPED_JUNGLE_LOG,
             Material.STRIPPED_ACACIA_LOG,   Material.STRIPPED_DARK_OAK_LOG,
             Material.STRIPPED_CHERRY_LOG,   Material.STRIPPED_MANGROVE_LOG,
             Material.STRIPPED_PALE_OAK_LOG,
 
-            // ── Wood (bark all sides) ───────────────────────────────────────
+            // Wood (bark all sides)
             Material.OAK_WOOD,      Material.SPRUCE_WOOD,   Material.BIRCH_WOOD,
             Material.JUNGLE_WOOD,   Material.ACACIA_WOOD,   Material.DARK_OAK_WOOD,
             Material.CHERRY_WOOD,   Material.MANGROVE_WOOD, Material.PALE_OAK_WOOD,
 
-            // ── Stripped wood ───────────────────────────────────────────────
+            // Stripped wood
             Material.STRIPPED_OAK_WOOD,     Material.STRIPPED_SPRUCE_WOOD,
             Material.STRIPPED_BIRCH_WOOD,   Material.STRIPPED_JUNGLE_WOOD,
             Material.STRIPPED_ACACIA_WOOD,  Material.STRIPPED_DARK_OAK_WOOD,
             Material.STRIPPED_CHERRY_WOOD,  Material.STRIPPED_MANGROVE_WOOD,
             Material.STRIPPED_PALE_OAK_WOOD,
 
-            // ── Nether stems ────────────────────────────────────────────────
+            // Nether stems
             Material.CRIMSON_STEM,          Material.WARPED_STEM,
             Material.STRIPPED_CRIMSON_STEM, Material.STRIPPED_WARPED_STEM,
             Material.CRIMSON_HYPHAE,        Material.WARPED_HYPHAE,
@@ -58,7 +58,6 @@ public final class TreeUtil {
 
     /**
      * Scan nearby blocks untuk leaves.
-     * Scan juga ke bawah 1 block agar daun rendah (pale oak, mangrove) terdeteksi.
      */
     public static boolean hasNearbyLeaves(Block block, int radius) {
         int bx = block.getX(), by = block.getY(), bz = block.getZ();
@@ -77,7 +76,7 @@ public final class TreeUtil {
     }
 
     /**
-     * Cek apakah ada log di atas atau bawah = valid trunk.
+     * Cek Log = valid trunk.
      */
     public static boolean hasVerticalStructure(Block block) {
         return isLog(block.getRelative(0, 1, 0).getType())
@@ -85,7 +84,7 @@ public final class TreeUtil {
     }
 
     /**
-     * Map log → sapling untuk auto-replant.
+     * Map log → sapling for auto-replant.
      */
     public static Material getSapling(Material log) {
         return switch (log) {
