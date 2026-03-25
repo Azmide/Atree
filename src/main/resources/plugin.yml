@@ -1,5 +1,5 @@
 name: ATree
-version: '1.0-SNAPSHOT'
+version: '1.1'
 main: org.AzSofware.aTree.ATree
 api-version: '1.21'
 authors: [AzmiDe]

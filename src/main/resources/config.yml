@@ -1,9 +1,9 @@
 # ╔═══════════════════════════════════════╗
-# ║           Aztree Configuration        ║
-# ║        Smart TreeCapitator Plugin     ║
+# ║         Aztree Configuration          ║
+# ║   Smart TreeCapitator Plugin AzmiD    ║
 # ╚═══════════════════════════════════════╝
 
-prefix: "&8[&aAztree&8] "
+prefix: "&e&lWC &d>> "
 
 aztree:
   # Master switch for the plugin
