@@ -4,6 +4,10 @@ import org.AzSofware.aTree.ATree;
 import net.kyori.adventure.text.Component;
 import org.bukkit.configuration.file.FileConfiguration;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 public class ConfigManager {
 
     private final ATree plugin;
@@ -19,6 +23,8 @@ public class ConfigManager {
     private int blocksPerTick;
     private int cooldown;
     private boolean smartDetection;
+
+    private Set<String> blacklistedWorlds;
 
     private boolean replantEnabled;
     private int replantChance;
@@ -36,6 +42,7 @@ public class ConfigManager {
     private String msgNeedSneak;
     private String msgCooldown;
     private String msgNotTree;
+    private String msgBlacklistedWorld;
 
     public ConfigManager(ATree plugin) {
         this.plugin = plugin;
@@ -66,6 +73,13 @@ public class ConfigManager {
         cooldown = config.getInt("aztree.cooldown", 2);
         smartDetection = config.getBoolean("aztree.smart-detection", true);
 
+        // Blacklisted worlds — case-insensitive
+        List<String> rawList = config.getStringList("blacklisted-worlds");
+        blacklistedWorlds = new HashSet<>();
+        for (String w : rawList) {
+            blacklistedWorlds.add(w.toLowerCase());
+        }
+
         replantEnabled = config.getBoolean("replant.enabled", true);
         replantChance = config.getInt("replant.chance", 100);
 
@@ -77,11 +91,12 @@ public class ConfigManager {
         effectSound = config.getBoolean("effects.sound", true);
         effectParticle = config.getBoolean("effects.particle", true);
 
-        msgEnable = color(config.getString("messages.enable", "%prefix%&aAztree diaktifkan!"));
-        msgDisable = color(config.getString("messages.disable", "%prefix%&cAztree dimatikan!"));
-        msgNeedSneak = color(config.getString("messages.need-sneak", "%prefix%&eKamu harus jongkok!"));
-        msgCooldown = color(config.getString("messages.cooldown", "%prefix%&cTunggu %time% detik!"));
-        msgNotTree = color(config.getString("messages.not-tree", "%prefix%&cIni bukan pohon!"));
+        msgEnable           = color(config.getString("messages.enable",            "%prefix%&aAztree diaktifkan!"));
+        msgDisable          = color(config.getString("messages.disable",           "%prefix%&cAztree dimatikan!"));
+        msgNeedSneak        = color(config.getString("messages.need-sneak",        "%prefix%&eKamu harus jongkok!"));
+        msgCooldown         = color(config.getString("messages.cooldown",          "%prefix%&cTunggu %time% detik!"));
+        msgNotTree          = color(config.getString("messages.not-tree",          "%prefix%&cIni bukan pohon!"));
+        msgBlacklistedWorld = color(config.getString("messages.blacklisted-world", "%prefix%&cAztree tidak bisa digunakan di world ini!"));
     }
 
     /**
@@ -89,7 +104,6 @@ public class ConfigManager {
      */
     public Component format(String message) {
         String parsed = message.replace("%prefix%", prefix);
-        // Convert & codes to legacy format then to adventure
         parsed = parsed.replace("&", "§");
         return Component.text(parsed).asComponent();
     }
@@ -99,37 +113,51 @@ public class ConfigManager {
         return format(message.replace("%time%", timeStr));
     }
 
+    /** Returns Adventure Component langsung dari raw string config */
+    public Component formatRaw(String raw) {
+        return format(raw);
+    }
+
     private String color(String text) {
         if (text == null) return "";
         return text;
     }
 
+    /** Returns true jika world tersebut di-blacklist */
+    public boolean isWorldBlacklisted(String worldName) {
+        return blacklistedWorlds.contains(worldName.toLowerCase());
+    }
+
     // Getters
 
-    public boolean isAztreeEnabled() { return aztreeEnabled; }
-    public boolean isRequireSneak() { return requireSneak; }
-    public int getMaxBlocks() { return maxBlocks; }
-    public int getRadius() { return radius; }
-    public int getMaxDistance() { return maxDistance; }
-    public int getBlocksPerTick() { return blocksPerTick; }
-    public int getCooldown() { return cooldown; }
-    public boolean isSmartDetection() { return smartDetection; }
+    public boolean isAztreeEnabled()       { return aztreeEnabled; }
+    public boolean isRequireSneak()        { return requireSneak; }
+    public int     getMaxBlocks()          { return maxBlocks; }
+    public int     getRadius()             { return radius; }
+    public int     getMaxDistance()        { return maxDistance; }
+    public int     getBlocksPerTick()      { return blocksPerTick; }
+    public int     getCooldown()           { return cooldown; }
+    public boolean isSmartDetection()      { return smartDetection; }
 
-    public boolean isReplantEnabled() { return replantEnabled; }
-    public int getReplantChance() { return replantChance; }
+    public Set<String> getBlacklistedWorlds() { return blacklistedWorlds; }
 
-    public boolean isReminderEnabled() { return reminderEnabled; }
-    public int getReminderInterval() { return reminderInterval; }
-    public String getReminderType() { return reminderType; }
-    public String getReminderMessage() { return reminderMessage; }
+    public boolean isReplantEnabled()      { return replantEnabled; }
+    public int     getReplantChance()      { return replantChance; }
 
-    public boolean isEffectSound() { return effectSound; }
-    public boolean isEffectParticle() { return effectParticle; }
+    public boolean isReminderEnabled()     { return reminderEnabled; }
+    public int     getReminderInterval()   { return reminderInterval; }
+    public String  getReminderType()       { return reminderType; }
+    public String  getReminderMessage()    { return reminderMessage; }
 
-    public String getPrefix() { return prefix; }
-    public String getMsgEnable() { return msgEnable; }
-    public String getMsgDisable() { return msgDisable; }
-    public String getMsgNeedSneak() { return msgNeedSneak; }
-    public String getMsgCooldown() { return msgCooldown; }
-    public String getMsgNotTree() { return msgNotTree; }
+    public boolean isEffectSound()         { return effectSound; }
+    public boolean isEffectParticle()      { return effectParticle; }
+
+    public String getPrefix()              { return prefix; }
+    public String getMsgEnable()           { return msgEnable; }
+    public String getMsgDisable()          { return msgDisable; }
+    public String getMsgNeedSneak()        { return msgNeedSneak; }
+    public String getMsgCooldown()         { return msgCooldown; }
+    public String getMsgNotTree()          { return msgNotTree; }
+    public String getMsgBlacklistedWorld() { return msgBlacklistedWorld; }
 }
+
