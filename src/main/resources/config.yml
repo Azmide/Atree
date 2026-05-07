@@ -27,16 +27,16 @@ reminder:
   enabled: true
   interval: 5
   type: actionbar
-  message: "&aWc AKTIF! &7(Jongkok untuk digunakan)"
+  message: "&aWC ENABLED! &7(Sneak to use)"
 
 effects:
   sound: true
   particle: true
 
 messages:
-  enable: "%prefix%&aAztree diaktifkan!"
-  disable: "%prefix%&cAztree dimatikan!"
-  need-sneak: "%prefix%&eKamu harus jongkok!"
-  cooldown: "%prefix%&cTunggu &e%time% detik&c!"
-  not-tree: "%prefix%&cIni bukan pohon!"
-  blacklisted-world: "%prefix%&cAztree tidak bisa digunakan di world ini!"
+  enable: "%prefix%&aAztree enabled!"
+  disable: "%prefix%&cAztree disabled!"
+  need-sneak: "%prefix%&eYou must sneak!"
+  cooldown: "%prefix%&cWait &e%time% seconds&c!"
+  not-tree: "%prefix%&cThis is not a tree!"
+  blacklisted-world: "%prefix%&cAztree cannot be used in this world!"
