@@ -2,6 +2,8 @@ package org.AzSofware.aTree.config;
 
 import org.AzSofware.aTree.ATree;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.HashSet;
@@ -12,6 +14,15 @@ public class ConfigManager {
 
     private final ATree plugin;
     private FileConfiguration config;
+
+    // MiniMessage untuk hex, LegacySerializer untuk & codes
+    private static final MiniMessage MINI = MiniMessage.miniMessage();
+    private static final LegacyComponentSerializer LEGACY =
+            LegacyComponentSerializer.builder()
+                    .character('&')
+                    .hexColors()          // support &#RRGGBB
+                    .useUnusualXRepeatedCharacterHexFormat() // support &x&R&R&G&G&B&B
+                    .build();
 
     // Cached values
     private String prefix;
@@ -62,50 +73,59 @@ public class ConfigManager {
     }
 
     private void cache() {
-        prefix = color(config.getString("prefix", "&8[&aAztree&8] "));
+        prefix = config.getString("prefix", "&8[&aAztree&8] ");
 
         aztreeEnabled = config.getBoolean("aztree.enabled", true);
-        requireSneak = config.getBoolean("aztree.require-sneak", true);
-        maxBlocks = config.getInt("aztree.max-blocks", 100);
-        radius = config.getInt("aztree.radius", 6);
-        maxDistance = config.getInt("aztree.max-distance", 6);
+        requireSneak  = config.getBoolean("aztree.require-sneak", true);
+        maxBlocks     = config.getInt("aztree.max-blocks", 100);
+        radius        = config.getInt("aztree.radius", 6);
+        maxDistance   = config.getInt("aztree.max-distance", 6);
         blocksPerTick = config.getInt("aztree.blocks-per-tick", 10);
-        cooldown = config.getInt("aztree.cooldown", 2);
+        cooldown      = config.getInt("aztree.cooldown", 2);
         smartDetection = config.getBoolean("aztree.smart-detection", true);
 
         // Blacklisted worlds — case-insensitive
         List<String> rawList = config.getStringList("blacklisted-worlds");
         blacklistedWorlds = new HashSet<>();
-        for (String w : rawList) {
-            blacklistedWorlds.add(w.toLowerCase());
-        }
+        for (String w : rawList) blacklistedWorlds.add(w.toLowerCase());
 
-        replantEnabled = config.getBoolean("replant.enabled", true);
-        replantChance = config.getInt("replant.chance", 100);
+        replantEnabled  = config.getBoolean("replant.enabled", true);
+        replantChance   = config.getInt("replant.chance", 100);
 
-        reminderEnabled = config.getBoolean("reminder.enabled", true);
+        reminderEnabled  = config.getBoolean("reminder.enabled", true);
         reminderInterval = config.getInt("reminder.interval", 5);
-        reminderType = config.getString("reminder.type", "actionbar");
-        reminderMessage = config.getString("reminder.message", "&aAztree AKTIF! &7(Jongkok untuk digunakan)");
+        reminderType     = config.getString("reminder.type", "actionbar");
+        reminderMessage  = config.getString("reminder.message", "&aAztree AKTIF! &7(Jongkok untuk digunakan)");
 
-        effectSound = config.getBoolean("effects.sound", true);
+        effectSound    = config.getBoolean("effects.sound", true);
         effectParticle = config.getBoolean("effects.particle", true);
 
-        msgEnable           = color(config.getString("messages.enable",            "%prefix%&aAztree diaktifkan!"));
-        msgDisable          = color(config.getString("messages.disable",           "%prefix%&cAztree dimatikan!"));
-        msgNeedSneak        = color(config.getString("messages.need-sneak",        "%prefix%&eKamu harus jongkok!"));
-        msgCooldown         = color(config.getString("messages.cooldown",          "%prefix%&cTunggu %time% detik!"));
-        msgNotTree          = color(config.getString("messages.not-tree",          "%prefix%&cIni bukan pohon!"));
-        msgBlacklistedWorld = color(config.getString("messages.blacklisted-world", "%prefix%&cAztree tidak bisa digunakan di world ini!"));
+        msgEnable           = config.getString("messages.enable",            "%prefix%&aAztree diaktifkan!");
+        msgDisable          = config.getString("messages.disable",           "%prefix%&cAztree dimatikan!");
+        msgNeedSneak        = config.getString("messages.need-sneak",        "%prefix%&eKamu harus jongkok!");
+        msgCooldown         = config.getString("messages.cooldown",          "%prefix%&cTunggu %time% detik!");
+        msgNotTree          = config.getString("messages.not-tree",          "%prefix%&cIni bukan pohon!");
+        msgBlacklistedWorld = config.getString("messages.blacklisted-world", "%prefix%&cAztree tidak bisa digunakan di world ini!");
     }
 
     /**
-     * Translate legacy & color codes to Adventure components
+     * Format string menjadi Adventure Component.
+     * Support:
+     *   - & color codes  → &a &c &l dll
+     *   - &#RRGGBB       → hex via LegacySerializer  contoh: &#FF5733
+     *   - #RRGGBB        → hex via konversi otomatis  contoh: #FF5733
      */
     public Component format(String message) {
+        if (message == null) return Component.empty();
+
+        // Ganti %prefix% dulu
         String parsed = message.replace("%prefix%", prefix);
-        parsed = parsed.replace("&", "§");
-        return Component.text(parsed).asComponent();
+
+        // Konversi format #RRGGBB → &#RRGGBB agar bisa dibaca LegacySerializer
+        parsed = convertHashHex(parsed);
+
+        // Parse via LegacySerializer (support & codes + &#RRGGBB hex)
+        return LEGACY.deserialize(parsed);
     }
 
     public Component formatCooldown(String message, double time) {
@@ -113,14 +133,13 @@ public class ConfigManager {
         return format(message.replace("%time%", timeStr));
     }
 
-    /** Returns Adventure Component langsung dari raw string config */
-    public Component formatRaw(String raw) {
-        return format(raw);
-    }
-
-    private String color(String text) {
-        if (text == null) return "";
-        return text;
+    /**
+     * Konversi #RRGGBB → &#RRGGBB supaya LegacySerializer bisa baca.
+     * Contoh: "Halo #FF5733dunia" → "Halo &#FF5733dunia"
+     */
+    private String convertHashHex(String text) {
+        // Regex: # diikuti tepat 6 karakter hex (tidak didahului &)
+        return text.replaceAll("(?<!&)#([0-9A-Fa-f]{6})", "&#$1");
     }
 
     /** Returns true jika world tersebut di-blacklist */
@@ -128,7 +147,7 @@ public class ConfigManager {
         return blacklistedWorlds.contains(worldName.toLowerCase());
     }
 
-    // Getters
+    // ── Getters ──────────────────────────────────────────────────────────────
 
     public boolean isAztreeEnabled()       { return aztreeEnabled; }
     public boolean isRequireSneak()        { return requireSneak; }
@@ -160,4 +179,3 @@ public class ConfigManager {
     public String getMsgNotTree()          { return msgNotTree; }
     public String getMsgBlacklistedWorld() { return msgBlacklistedWorld; }
 }
-
