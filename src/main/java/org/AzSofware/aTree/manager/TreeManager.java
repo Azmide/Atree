@@ -1,23 +1,38 @@
 package org.AzSofware.aTree.manager;
 
 import org.AzSofware.aTree.ATree;
+import org.AzSofware.aTree.config.ConfigManager;
 import org.AzSofware.aTree.util.TreeUtil;
-import org.bukkit.Location;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.Tag;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Core manager for TreeCapitator logic.
  *
- * <p>Uses BFS (Breadth-First Search) to collect all connected logs,
- * then breaks them smoothly per-tick using a Queue.</p>
+ * <p>Uses BFS to collect all connected logs, then breaks them smoothly over several ticks.
+ * Every extra log fires a real {@link BlockBreakEvent} so claim and protection plugins can veto it.</p>
  */
 public class TreeManager {
 
@@ -26,82 +41,115 @@ public class TreeManager {
     // Active tasks per player (to cancel on logout/disable)
     private final Map<UUID, BukkitTask> activeTasks = new HashMap<>();
 
+    // Players whose own BlockBreakEvent is being fired right now (so our listener skips it)
+    private final Set<UUID> breaking = new HashSet<>();
+
     public TreeManager(ATree plugin) {
         this.plugin = plugin;
     }
 
     /**
      * Start the smooth tree break for a player at a given block.
-     *
-     * @param player   The player breaking the tree
-     * @param origin   The first log block broken
+     * The origin block itself is broken by the vanilla event that triggered this.
      */
     public void startTreeBreak(Player player, Block origin) {
-        // Cancel any existing task for this player
-        cancelTask(player.getUniqueId());
+        UUID uuid = player.getUniqueId();
+        if (activeTasks.containsKey(uuid)) return;
 
-        // Collect all tree blocks via BFS
-        List<Block> treeBlocks = collectTree(origin);
-
-        if (treeBlocks.isEmpty()) return;
-
-        // Record the origin location and material for replanting
-        Location originLoc = origin.getLocation().clone();
+        ConfigManager cfg = plugin.getConfigManager();
         Material originType = origin.getType();
 
-        // Apply cooldown
-        plugin.getCooldownManager().applyCooldown(player.getUniqueId());
+        List<Block> treeBlocks = collectTree(origin, cfg);
+        if (treeBlocks.size() <= 1) return;
 
-        Queue<Block> breakQueue = new LinkedList<>(treeBlocks);
-        int blocksPerTick = plugin.getConfigManager().getBlocksPerTick();
+        plugin.getCooldownManager().applyCooldown(uuid);
+
+        List<Block> bases = findBases(treeBlocks);
+        List<Block> queue = new ArrayList<>(treeBlocks);
+        queue.remove(origin);
+
+        int blocksPerTick = cfg.getBlocksPerTick();
 
         BukkitTask task = new BukkitRunnable() {
+            private int index = 0;
+
             @Override
             public void run() {
-                if (breakQueue.isEmpty()) {
-                    // All blocks broken — schedule replant
-                    int totalBlocks = treeBlocks.size();
-                    // Add extra delay so drops settle: 1 tick per block batch
-                    long replantDelay = (long) Math.ceil((double) totalBlocks / blocksPerTick) + 5;
-                    plugin.getReplantManager().scheduleReplant(originLoc, originType, replantDelay);
-                    activeTasks.remove(player.getUniqueId());
-                    cancel();
+                if (!player.isOnline()) {
+                    finish(uuid);
                     return;
                 }
 
-                // Break up to blocksPerTick blocks this tick
-                for (int i = 0; i < blocksPerTick; i++) {
-                    Block block = breakQueue.poll();
-                    if (block == null) break;
+                for (int i = 0; i < blocksPerTick && index < queue.size(); i++) {
+                    Block block = queue.get(index++);
 
-                    // Safety check: make sure it's still a log (player might be near)
+                    // Safety check: only logs of the same tree that are still standing
                     if (!TreeUtil.isLog(block.getType())) continue;
 
-                    // Effects
-                    playEffects(block);
+                    if (!canKeepBreaking(player, cfg)) {
+                        index = queue.size();
+                        break;
+                    }
 
-                    // Break block (drop items naturally)
-                    block.breakNaturally(player.getInventory().getItemInMainHand());
+                    breakLog(player, block, cfg);
+                }
+
+                if (index >= queue.size()) {
+                    long replantDelay = 5L;
+                    plugin.getReplantManager().scheduleReplant(bases, originType, replantDelay);
+                    finish(uuid);
                 }
             }
         }.runTaskTimer(plugin, 1L, 1L);
 
-        activeTasks.put(player.getUniqueId(), task);
+        activeTasks.put(uuid, task);
+    }
+
+    /** The tool must still be an axe (when required) and the player must not have lost it. */
+    private boolean canKeepBreaking(Player player, ConfigManager cfg) {
+        if (!cfg.isRequireAxe()) return true;
+        return Tag.ITEMS_AXES.isTagged(player.getInventory().getItemInMainHand().getType());
+    }
+
+    private void breakLog(Player player, Block block, ConfigManager cfg) {
+        BlockBreakEvent event = new BlockBreakEvent(block, player);
+        breaking.add(player.getUniqueId());
+        try {
+            plugin.getServer().getPluginManager().callEvent(event);
+        } finally {
+            breaking.remove(player.getUniqueId());
+        }
+        if (event.isCancelled()) return;
+
+        playEffects(block, cfg);
+
+        ItemStack tool = player.getInventory().getItemInMainHand();
+        if (player.getGameMode() == GameMode.CREATIVE || !event.isDropItems()) {
+            block.setType(Material.AIR);
+        } else {
+            block.breakNaturally(tool);
+        }
+
+        if (cfg.isToolDamage() && player.getGameMode() != GameMode.CREATIVE
+                && tool.getType().getMaxDurability() > 0) {
+            player.damageItemStack(EquipmentSlot.HAND, 1);
+        }
     }
 
     /**
-     * BFS tree collection.
-     * Starts from the origin block and finds all connected logs.
+     * BFS tree collection starting at the origin block.
      *
-     * @param origin Starting block
-     * @return List of blocks to break (ordered BFS, bottom-up)
+     * @return connected logs, origin first (closest to the origin first)
      */
-    private List<Block> collectTree(Block origin) {
-        int maxBlocks = plugin.getConfigManager().getMaxBlocks();
-        int maxDistance = plugin.getConfigManager().getMaxDistance();
+    private List<Block> collectTree(Block origin, ConfigManager cfg) {
+        int maxBlocks = cfg.getMaxBlocks();
+        int maxDistance = cfg.getMaxDistance();
+        boolean sameWood = cfg.isSameWoodOnly();
+        String family = TreeUtil.family(origin.getType());
+        World world = origin.getWorld();
 
         List<Block> result = new ArrayList<>();
-        Queue<Block> queue = new LinkedList<>();
+        Queue<Block> queue = new ArrayDeque<>();
         Set<Block> visited = new HashSet<>();
 
         queue.add(origin);
@@ -115,63 +163,61 @@ public class TreeManager {
             Block current = queue.poll();
             result.add(current);
 
-            // Check all 6 faces + diagonal variants for logs
-            for (Block neighbor : getNeighbors(current)) {
-                if (visited.contains(neighbor)) continue;
-                if (!TreeUtil.isLog(neighbor.getType())) continue;
+            // All 26 neighbours so 2x2 trunks, diagonal branches and big jungle trees are found
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
 
-                // Distance check from origin
-                int dx = Math.abs(neighbor.getX() - originX);
-                int dy = Math.abs(neighbor.getY() - originY);
-                int dz = Math.abs(neighbor.getZ() - originZ);
-                if (dx > maxDistance || dy > maxDistance * 2 || dz > maxDistance) continue;
+                        int x = current.getX() + dx;
+                        int y = current.getY() + dy;
+                        int z = current.getZ() + dz;
 
-                // Don't load new chunks
-                if (!neighbor.getChunk().isLoaded()) continue;
+                        if (Math.abs(x - originX) > maxDistance || Math.abs(z - originZ) > maxDistance) continue;
+                        if (Math.abs(y - originY) > maxDistance * 2) continue;
+                        if (y < world.getMinHeight() || y >= world.getMaxHeight()) continue;
 
-                visited.add(neighbor);
-                queue.add(neighbor);
+                        // Never load new chunks
+                        if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
+
+                        Block neighbor = world.getBlockAt(x, y, z);
+                        if (visited.contains(neighbor)) continue;
+                        if (!TreeUtil.isLog(neighbor.getType())) continue;
+                        if (sameWood && !TreeUtil.family(neighbor.getType()).equals(family)) continue;
+
+                        visited.add(neighbor);
+                        queue.add(neighbor);
+                    }
+                }
             }
         }
 
         return result;
     }
 
-    /**
-     * Get all 6 face-adjacent blocks plus 8 diagonal variants for log finding.
-     * We check diagonals because some large trees (dark oak, jungle) have non-straight trunks.
-     */
-    private List<Block> getNeighbors(Block block) {
-        List<Block> neighbors = new ArrayList<>(18);
-        int[] offsets = {-1, 0, 1};
+    /** Lowest logs of the tree, the spots where a sapling can be planted again. */
+    private List<Block> findBases(List<Block> treeBlocks) {
+        int minY = Integer.MAX_VALUE;
+        for (Block b : treeBlocks) minY = Math.min(minY, b.getY());
 
-        for (int dx : offsets) {
-            for (int dy : offsets) {
-                for (int dz : offsets) {
-                    if (dx == 0 && dy == 0 && dz == 0) continue;
-                    // Limit horizontal diagonals - prefer vertical traversal
-                    if (Math.abs(dx) == 1 && Math.abs(dz) == 1 && dy == 0) continue;
-                    neighbors.add(block.getRelative(dx, dy, dz));
-                }
-            }
+        List<Block> bases = new ArrayList<>();
+        for (Block b : treeBlocks) {
+            if (b.getY() == minY) bases.add(b);
         }
-        return neighbors;
+        return bases;
     }
 
-    /**
-     * Play break effects at a block location.
-     */
-    private void playEffects(Block block) {
-        if (plugin.getConfigManager().isEffectSound()) {
+    private void playEffects(Block block, ConfigManager cfg) {
+        if (cfg.isEffectSound()) {
             block.getWorld().playSound(
                     block.getLocation(),
                     Sound.BLOCK_WOOD_BREAK,
                     1.0f,
-                    0.8f + (float) (Math.random() * 0.4f) // Slight pitch variation
+                    0.8f + ThreadLocalRandom.current().nextFloat() * 0.4f
             );
         }
 
-        if (plugin.getConfigManager().isEffectParticle()) {
+        if (cfg.isEffectParticle()) {
             block.getWorld().spawnParticle(
                     Particle.BLOCK,
                     block.getLocation().add(0.5, 0.5, 0.5),
@@ -183,30 +229,28 @@ public class TreeManager {
         }
     }
 
-    /**
-     * Cancel an active task for a player.
-     */
-    public void cancelTask(UUID uuid) {
+    private void finish(UUID uuid) {
         BukkitTask task = activeTasks.remove(uuid);
-        if (task != null && !task.isCancelled()) {
-            task.cancel();
-        }
+        if (task != null) task.cancel();
     }
 
-    /**
-     * Cancel all active tasks (on plugin disable).
-     */
+    /** Cancel an active task for a player. */
+    public void cancelTask(UUID uuid) {
+        finish(uuid);
+    }
+
+    /** Cancel all active tasks (on plugin disable). */
     public void cancelAll() {
-        activeTasks.values().forEach(t -> {
-            if (!t.isCancelled()) t.cancel();
-        });
+        activeTasks.values().forEach(BukkitTask::cancel);
         activeTasks.clear();
     }
 
-    /**
-     * Check whether a player has an active tree break task running.
-     */
     public boolean hasActiveTask(UUID uuid) {
         return activeTasks.containsKey(uuid);
+    }
+
+    /** True while one of our own break events is being fired for this player. */
+    public boolean isBreaking(UUID uuid) {
+        return breaking.contains(uuid);
     }
 }

@@ -1,7 +1,9 @@
 package org.AzSofware.aTree.util;
 
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.type.Leaves;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -47,7 +49,7 @@ public final class TreeUtil {
             Material.BIRCH_LEAVES,      Material.JUNGLE_LEAVES,
             Material.ACACIA_LEAVES,     Material.DARK_OAK_LEAVES,
             Material.CHERRY_LEAVES,     Material.MANGROVE_LEAVES,
-            Material.PALE_OAK_LEAVES,   // ← Pale Oak 1.21.4
+            Material.PALE_OAK_LEAVES,   
             Material.AZALEA_LEAVES,     Material.FLOWERING_AZALEA_LEAVES
     );
 
@@ -57,30 +59,41 @@ public final class TreeUtil {
     public static boolean isLeaf(Block b)    { return isLeaf(b.getType()); }
 
     /**
-     * Scan nearby blocks untuk leaves.
+     * Scan the area around (and above) a log for leaves.
+     *
+     * @param naturalOnly only count non-persistent leaves, i.e. leaves not placed by a player
      */
-    public static boolean hasNearbyLeaves(Block block, int radius) {
+    public static boolean hasNearbyLeaves(Block block, int radius, boolean naturalOnly) {
+        World world = block.getWorld();
         int bx = block.getX(), by = block.getY(), bz = block.getZ();
         for (int x = -radius; x <= radius; x++) {
-            for (int y = -1; y <= radius + 3; y++) {
-                for (int z = -radius; z <= radius; z++) {
-                    if (x == 0 && y == 0 && z == 0) continue;
-                    Material m = block.getWorld()
-                            .getBlockAt(bx + x, by + y, bz + z)
-                            .getType();
-                    if (isLeaf(m)) return true;
+            for (int z = -radius; z <= radius; z++) {
+                if (!world.isChunkLoaded((bx + x) >> 4, (bz + z) >> 4)) continue;
+                for (int y = -1; y <= radius + 3; y++) {
+                    Block b = world.getBlockAt(bx + x, by + y, bz + z);
+                    if (!isLeaf(b.getType())) continue;
+                    if (naturalOnly && b.getBlockData() instanceof Leaves leaves && leaves.isPersistent()) continue;
+                    return true;
                 }
             }
         }
         return false;
     }
 
-    /**
-     * Cek Log = valid trunk.
-     */
+    /** A log is a valid trunk when another log sits directly above or below it. */
     public static boolean hasVerticalStructure(Block block) {
         return isLog(block.getRelative(0, 1, 0).getType())
                 || isLog(block.getRelative(0, -1, 0).getType());
+    }
+
+    /** Wood family of a log, e.g. STRIPPED_OAK_WOOD and OAK_LOG are both "OAK". */
+    public static String family(Material log) {
+        String name = log.name();
+        if (name.startsWith("STRIPPED_")) name = name.substring("STRIPPED_".length());
+        for (String suffix : new String[]{"_LOG", "_WOOD", "_STEM", "_HYPHAE"}) {
+            if (name.endsWith(suffix)) return name.substring(0, name.length() - suffix.length());
+        }
+        return name;
     }
 
     /**
@@ -106,7 +119,7 @@ public final class TreeUtil {
                  STRIPPED_MANGROVE_LOG, STRIPPED_MANGROVE_WOOD  -> Material.MANGROVE_PROPAGULE;
             case PALE_OAK_LOG, PALE_OAK_WOOD,
                  STRIPPED_PALE_OAK_LOG, STRIPPED_PALE_OAK_WOOD  -> Material.PALE_OAK_SAPLING;
-            default -> null; // Nether stems tidak punya sapling
+            default -> null; // Nether stems have no sapling
         };
     }
 }

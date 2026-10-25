@@ -1,19 +1,33 @@
-# ╔═══════════════════════════════════════╗
-# ║           Aztree Configuration        ║
-# ║        Smart TreeCapitator Plugin     ║
-# ╚═══════════════════════════════════════╝
+# =====================================================================
+#  ATree - Smart TreeCapitator
+# =====================================================================
 
 prefix: "&e&lWC &d>> "
 
 aztree:
+  # Global master switch.
   enabled: true
+  # Players must sneak while breaking the log.
   require-sneak: true
+  # Players must hold an axe.
+  require-axe: true
+  # Maximum number of logs removed per tree.
   max-blocks: 100
-  radius: 6
+  # Maximum distance (in blocks) a log may be from the one you broke.
   max-distance: 6
+  # Logs broken per tick (lower = smoother, higher = faster).
   blocks-per-tick: 10
+  # Seconds between two tree fellings (decimals allowed, 0 = off).
   cooldown: 2
+  # Only treat a log as a tree when it has a trunk and leaves around it.
   smart-detection: true
+  smart-detection-radius: 3
+  # Ignore leaves placed by players, so log houses and builds are never felled.
+  natural-leaves-only: true
+  # Only fell logs of the same wood type as the one you broke.
+  same-wood-only: true
+  # Wear down the axe for every extra log (the felling stops when it breaks).
+  tool-damage: true
 
 blacklisted-worlds:
   - world_nether
@@ -21,11 +35,14 @@ blacklisted-worlds:
 
 replant:
   enabled: true
+  # Chance (0-100) that the tree is replanted.
   chance: 100
 
 reminder:
   enabled: true
+  # Seconds between reminders.
   interval: 5
+  # actionbar or chat
   type: actionbar
   message: "&aWC ENABLED! &7(Sneak to use)"
 
@@ -34,9 +51,13 @@ effects:
   particle: true
 
 messages:
-  enable: "%prefix%&aAztree enabled!"
-  disable: "%prefix%&cAztree disabled!"
+  enable: "%prefix%&aATree enabled!"
+  disable: "%prefix%&cATree disabled!"
   need-sneak: "%prefix%&eYou must sneak!"
   cooldown: "%prefix%&cWait &e%time% seconds&c!"
   not-tree: "%prefix%&cThis is not a tree!"
-  blacklisted-world: "%prefix%&cAztree cannot be used in this world!"
+  blacklisted-world: "%prefix%&cATree cannot be used in this world!"
+  no-permission: "%prefix%&cYou may not do that."
+  only-players: "%prefix%&cOnly players can use this command."
+  usage: "%prefix%&eUsage: &f/aztree reload"
+  reloaded: "%prefix%&aConfig reloaded successfully!"

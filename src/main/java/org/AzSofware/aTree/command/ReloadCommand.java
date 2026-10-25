@@ -1,8 +1,7 @@
 package org.AzSofware.aTree.command;
 
 import org.AzSofware.aTree.ATree;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import org.AzSofware.aTree.config.ConfigManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -27,25 +26,23 @@ public class ReloadCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
                              @NotNull String label, @NotNull String[] args) {
+        ConfigManager cfg = plugin.getConfigManager();
         if (!sender.hasPermission("aztree.reload")) {
-            sender.sendMessage(Component.text("You don't have permission to do that.", NamedTextColor.RED));
+            sender.sendMessage(cfg.format(cfg.getMsgNoPermission()));
             return true;
         }
 
         if (args.length == 0 || !args[0].equalsIgnoreCase("reload")) {
-            sender.sendMessage(Component.text("Usage: /aztree reload", NamedTextColor.YELLOW));
+            sender.sendMessage(cfg.format(cfg.getMsgUsage()));
             return true;
         }
 
-        // Reload config
-        plugin.getConfigManager().reload();
+        cfg.reload();
 
         // Restart reminder with new interval
         plugin.getReminderManager().restart();
 
-        sender.sendMessage(plugin.getConfigManager().format(
-                plugin.getConfigManager().getPrefix() + "&aConfig reloaded successfully!"
-        ));
+        sender.sendMessage(cfg.format(cfg.getMsgReloaded()));
 
         return true;
     }
@@ -53,7 +50,7 @@ public class ReloadCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                       @NotNull String label, @NotNull String[] args) {
-        if (args.length == 1) {
+        if (args.length == 1 && sender.hasPermission("aztree.reload")) {
             return List.of("reload");
         }
         return Collections.emptyList();

@@ -1,9 +1,10 @@
 name: ATree
-version: '1.2'
+version: ${project.version}
 main: org.AzSofware.aTree.ATree
-api-version: '1.21'
-authors: [AzmiDe]
-description: Smart TreeCapitator plugin for Paper/Spigot 1.21+
+author: AzmiDe
+api-version: '26.2'
+folia-supported: false
+description: Smart TreeCapitator plugin for Paper 26.2
 
 commands:
   wc:
@@ -12,11 +13,20 @@ commands:
     aliases: [ woodcutter, treecap ]
 
   aztree:
-    description: Aztree plugin management
+    description: ATree plugin management
     usage: /aztree <reload>
     aliases: [ az ]
 
 permissions:
+  aztree.*:
+    description: full access
+    children:
+      aztree.use: true
+      aztree.reload: true
+
+  aztree.use:
+    description: toggle and use the TreeCapitator
+    default: true
   aztree.reload:
-    description: Allows reloading the Aztree config
+    description: reload the ATree config
     default: op

@@ -3,6 +3,7 @@ package org.AzSofware.aTree.listener;
 import org.AzSofware.aTree.ATree;
 import org.AzSofware.aTree.config.ConfigManager;
 import org.AzSofware.aTree.util.TreeUtil;
+import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -21,49 +22,45 @@ public class BlockBreakListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        Block  block  = event.getBlock();
-
-        // 1. Global switch
-        if (!plugin.getConfigManager().isAztreeEnabled()) return;
-
-        // 2. Must be a log block
-        if (!TreeUtil.isLog(block.getType())) return;
-
-        // 3. Player must have toggled Aztree ON
-        if (!plugin.isEnabled(player.getUniqueId())) return;
-
+        Block block = event.getBlock();
         ConfigManager cfg = plugin.getConfigManager();
 
-        // 4. World blacklist check
-        String worldName = block.getWorld().getName();
-        if (cfg.isWorldBlacklisted(worldName)) {
+        // Ignore the events we fire ourselves for every extra log
+        if (plugin.getTreeManager().isBreaking(player.getUniqueId())) return;
+
+        if (!cfg.isAztreeEnabled()) return;
+        if (!TreeUtil.isLog(block.getType())) return;
+        if (!plugin.isEnabled(player.getUniqueId())) return;
+        if (!player.hasPermission("aztree.use")) return;
+
+        if (cfg.isWorldBlacklisted(block.getWorld().getName())) {
             player.sendMessage(cfg.format(cfg.getMsgBlacklistedWorld()));
             return;
         }
 
-        // 5. Sneak requirement
         if (cfg.isRequireSneak() && !player.isSneaking()) return;
+        if (cfg.isRequireAxe()
+                && !Tag.ITEMS_AXES.isTagged(player.getInventory().getItemInMainHand().getType())) return;
 
-        // 6. Cooldown check
+        // A tree is still being felled for this player
+        if (plugin.getTreeManager().hasActiveTask(player.getUniqueId())) return;
+
+        // Cooldown: the log still breaks normally, only the tree stays up
         if (plugin.getCooldownManager().isOnCooldown(player.getUniqueId(), cfg.getCooldown())) {
             double remaining = plugin.getCooldownManager()
                     .getRemainingSeconds(player.getUniqueId(), cfg.getCooldown());
             player.sendMessage(cfg.formatCooldown(cfg.getMsgCooldown(), remaining));
-            event.setCancelled(true);
             return;
         }
 
-        // 7. Smart detection
         if (cfg.isSmartDetection()) {
-            boolean hasLeaves   = TreeUtil.hasNearbyLeaves(block, 3);
-            boolean hasVertical = TreeUtil.hasVerticalStructure(block);
-            if (!hasLeaves || !hasVertical) {
+            boolean hasLeaves = TreeUtil.hasNearbyLeaves(block, cfg.getSmartRadius(), cfg.isNaturalLeavesOnly());
+            if (!hasLeaves || !TreeUtil.hasVerticalStructure(block)) {
                 player.sendMessage(cfg.format(cfg.getMsgNotTree()));
                 return;
             }
         }
 
-        // 8. Start smooth tree break
         plugin.getTreeManager().startTreeBreak(player, block);
     }
 }

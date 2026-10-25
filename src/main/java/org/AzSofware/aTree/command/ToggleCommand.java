@@ -26,7 +26,12 @@ public class ToggleCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
                              @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Only players can use this command.");
+            sender.sendMessage(plugin.getConfigManager().format(plugin.getConfigManager().getMsgOnlyPlayers()));
+            return true;
+        }
+
+        if (!player.hasPermission("aztree.use")) {
+            player.sendMessage(plugin.getConfigManager().format(plugin.getConfigManager().getMsgNoPermission()));
             return true;
         }
 

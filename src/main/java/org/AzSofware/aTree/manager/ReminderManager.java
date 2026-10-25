@@ -1,15 +1,12 @@
 package org.AzSofware.aTree.manager;
 
-import org.AzSofware.aTree.ATree;
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
+import org.AzSofware.aTree.ATree;
+import org.AzSofware.aTree.config.ConfigManager;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
-/**
- * Periodically reminds players who have Aztree enabled.
- */
+/** Periodically reminds players who have ATree enabled. */
 public class ReminderManager {
 
     private final ATree plugin;
@@ -20,45 +17,37 @@ public class ReminderManager {
     }
 
     public void start() {
-        stop(); // Cancel existing task if any
+        stop();
 
-        if (!plugin.getConfigManager().isReminderEnabled()) return;
+        ConfigManager cfg = plugin.getConfigManager();
+        if (!cfg.isReminderEnabled()) return;
 
-        int intervalSeconds = plugin.getConfigManager().getReminderInterval();
-        long intervalTicks = intervalSeconds * 20L;
+        long intervalTicks = cfg.getReminderInterval() * 20L;
 
-        task = new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    if (!plugin.isEnabled(player.getUniqueId())) continue;
+        task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            Component message = cfg.format(cfg.getReminderMessage());
+            boolean actionBar = "actionbar".equalsIgnoreCase(cfg.getReminderType());
 
-                    Component message = plugin.getConfigManager()
-                            .format(plugin.getConfigManager().getReminderMessage());
-
-                    String type = plugin.getConfigManager().getReminderType();
-                    if ("actionbar".equalsIgnoreCase(type)) {
-                        player.sendActionBar(message);
-                    } else {
-                        player.sendMessage(message);
-                    }
+            for (Player player : plugin.getServer().getOnlinePlayers()) {
+                if (!plugin.isEnabled(player.getUniqueId())) continue;
+                if (actionBar) {
+                    player.sendActionBar(message);
+                } else {
+                    player.sendMessage(message);
                 }
             }
-        }.runTaskTimer(plugin, intervalTicks, intervalTicks);
+        }, intervalTicks, intervalTicks);
     }
 
     public void stop() {
-        if (task != null && !task.isCancelled()) {
+        if (task != null) {
             task.cancel();
             task = null;
         }
     }
 
-    /**
-     * Restart reminder task (called after reload).
-     */
+    /** Restart the reminder task (called after reload). */
     public void restart() {
-        stop();
         start();
     }
 }

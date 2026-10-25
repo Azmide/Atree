@@ -4,10 +4,12 @@ import org.AzSofware.aTree.command.ReloadCommand;
 import org.AzSofware.aTree.command.ToggleCommand;
 import org.AzSofware.aTree.config.ConfigManager;
 import org.AzSofware.aTree.listener.BlockBreakListener;
+import org.AzSofware.aTree.listener.PlayerQuitListener;
 import org.AzSofware.aTree.manager.CooldownManager;
 import org.AzSofware.aTree.manager.ReminderManager;
 import org.AzSofware.aTree.manager.ReplantManager;
 import org.AzSofware.aTree.manager.TreeManager;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.HashSet;
@@ -24,7 +26,7 @@ public final class ATree extends JavaPlugin {
     private ReplantManager replantManager;
     private ReminderManager reminderManager;
 
-    // Players who have toggled Aztree ON
+    // Players who have toggled ATree ON
     private final Set<UUID> enabledPlayers = new HashSet<>();
 
     @Override
@@ -43,20 +45,19 @@ public final class ATree extends JavaPlugin {
 
         // Register listener
         getServer().getPluginManager().registerEvents(new BlockBreakListener(this), this);
+        getServer().getPluginManager().registerEvents(new PlayerQuitListener(this), this);
 
         // Register commands
         ToggleCommand toggleCmd = new ToggleCommand(this);
-        getCommand("wc").setExecutor(toggleCmd);
-        getCommand("wc").setTabCompleter(toggleCmd);
+        bind("wc", toggleCmd, toggleCmd);
 
         ReloadCommand reloadCmd = new ReloadCommand(this);
-        getCommand("aztree").setExecutor(reloadCmd);
-        getCommand("aztree").setTabCompleter(reloadCmd);
+        bind("aztree", reloadCmd, reloadCmd);
 
         // Start reminder task
         reminderManager.start();
 
-        getLogger().info("Aztree v" + getDescription().getVersion() + " enabled!");
+        getLogger().info("ATree v" + getPluginMeta().getVersion() + " enabled!");
     }
 
     @Override
@@ -67,7 +68,18 @@ public final class ATree extends JavaPlugin {
         if (treeManager != null) {
             treeManager.cancelAll();
         }
-        getLogger().info("Aztree disabled!");
+        getLogger().info("ATree disabled!");
+    }
+
+    private void bind(String name, org.bukkit.command.CommandExecutor executor,
+                      org.bukkit.command.TabCompleter completer) {
+        PluginCommand command = getCommand(name);
+        if (command == null) {
+            getLogger().severe("The '" + name + "' command is missing from plugin.yml; it is disabled.");
+            return;
+        }
+        command.setExecutor(executor);
+        command.setTabCompleter(completer);
     }
 
     public static ATree getInstance() {
@@ -103,9 +115,7 @@ public final class ATree extends JavaPlugin {
     }
 
     public void toggle(UUID uuid) {
-        if (enabledPlayers.contains(uuid)) {
-            enabledPlayers.remove(uuid);
-        } else {
+        if (!enabledPlayers.remove(uuid)) {
             enabledPlayers.add(uuid);
         }
     }

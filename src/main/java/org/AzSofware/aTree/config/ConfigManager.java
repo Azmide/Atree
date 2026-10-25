@@ -2,7 +2,6 @@ package org.AzSofware.aTree.config;
 
 import org.AzSofware.aTree.ATree;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -14,10 +13,9 @@ public class ConfigManager {
 
     private final ATree plugin;
     private FileConfiguration config;
-
-    // MiniMessage untuk hex, LegacySerializer untuk & codes
-    private static final MiniMessage MINI = MiniMessage.miniMessage();
-    private static final LegacyComponentSerializer LEGACY =
+    
+    // Legacy serializer: & codes and hex
+        private static final LegacyComponentSerializer LEGACY =
             LegacyComponentSerializer.builder()
                     .character('&')
                     .hexColors()          // support &#RRGGBB
@@ -29,10 +27,14 @@ public class ConfigManager {
     private boolean aztreeEnabled;
     private boolean requireSneak;
     private int maxBlocks;
-    private int radius;
     private int maxDistance;
     private int blocksPerTick;
-    private int cooldown;
+    private double cooldown;
+    private boolean requireAxe;
+    private boolean naturalLeavesOnly;
+    private boolean sameWoodOnly;
+    private boolean toolDamage;
+    private int smartRadius;
     private boolean smartDetection;
 
     private Set<String> blacklistedWorlds;
@@ -54,6 +56,10 @@ public class ConfigManager {
     private String msgCooldown;
     private String msgNotTree;
     private String msgBlacklistedWorld;
+    private String msgNoPermission;
+    private String msgOnlyPlayers;
+    private String msgUsage;
+    private String msgReloaded;
 
     public ConfigManager(ATree plugin) {
         this.plugin = plugin;
@@ -61,9 +67,7 @@ public class ConfigManager {
 
     public void load() {
         plugin.saveDefaultConfig();
-        plugin.reloadConfig();
-        config = plugin.getConfig();
-        cache();
+        reload();
     }
 
     public void reload() {
@@ -73,16 +77,20 @@ public class ConfigManager {
     }
 
     private void cache() {
-        prefix = config.getString("prefix", "&8[&aAztree&8] ");
+        prefix = config.getString("prefix", "&e&lWC &d>> ");
 
         aztreeEnabled = config.getBoolean("aztree.enabled", true);
         requireSneak  = config.getBoolean("aztree.require-sneak", true);
-        maxBlocks     = config.getInt("aztree.max-blocks", 100);
-        radius        = config.getInt("aztree.radius", 6);
-        maxDistance   = config.getInt("aztree.max-distance", 6);
-        blocksPerTick = config.getInt("aztree.blocks-per-tick", 10);
-        cooldown      = config.getInt("aztree.cooldown", 2);
+        requireAxe    = config.getBoolean("aztree.require-axe", true);
+        maxBlocks     = Math.max(1, config.getInt("aztree.max-blocks", 100));
+        maxDistance   = Math.max(1, config.getInt("aztree.max-distance", 6));
+        blocksPerTick = Math.max(1, config.getInt("aztree.blocks-per-tick", 10));
+        cooldown      = Math.max(0, config.getDouble("aztree.cooldown", 2));
         smartDetection = config.getBoolean("aztree.smart-detection", true);
+        smartRadius   = Math.max(1, config.getInt("aztree.smart-detection-radius", 3));
+        naturalLeavesOnly = config.getBoolean("aztree.natural-leaves-only", true);
+        sameWoodOnly  = config.getBoolean("aztree.same-wood-only", true);
+        toolDamage    = config.getBoolean("aztree.tool-damage", true);
 
         // Blacklisted worlds — case-insensitive
         List<String> rawList = config.getStringList("blacklisted-worlds");
@@ -90,22 +98,26 @@ public class ConfigManager {
         for (String w : rawList) blacklistedWorlds.add(w.toLowerCase());
 
         replantEnabled  = config.getBoolean("replant.enabled", true);
-        replantChance   = config.getInt("replant.chance", 100);
+        replantChance   = Math.clamp(config.getInt("replant.chance", 100), 0, 100);
 
         reminderEnabled  = config.getBoolean("reminder.enabled", true);
-        reminderInterval = config.getInt("reminder.interval", 5);
+        reminderInterval = Math.max(1, config.getInt("reminder.interval", 5));
         reminderType     = config.getString("reminder.type", "actionbar");
-        reminderMessage  = config.getString("reminder.message", "&aAztree AKTIF! &7(Jongkok untuk digunakan)");
+        reminderMessage  = config.getString("reminder.message", "&aWC ENABLED! &7(Sneak to use)");
 
         effectSound    = config.getBoolean("effects.sound", true);
         effectParticle = config.getBoolean("effects.particle", true);
 
-        msgEnable           = config.getString("messages.enable",            "%prefix%&aAztree diaktifkan!");
-        msgDisable          = config.getString("messages.disable",           "%prefix%&cAztree dimatikan!");
-        msgNeedSneak        = config.getString("messages.need-sneak",        "%prefix%&eKamu harus jongkok!");
-        msgCooldown         = config.getString("messages.cooldown",          "%prefix%&cTunggu %time% detik!");
-        msgNotTree          = config.getString("messages.not-tree",          "%prefix%&cIni bukan pohon!");
-        msgBlacklistedWorld = config.getString("messages.blacklisted-world", "%prefix%&cAztree tidak bisa digunakan di world ini!");
+        msgEnable           = config.getString("messages.enable",            "%prefix%&aATree enabled!");
+        msgDisable          = config.getString("messages.disable",           "%prefix%&cATree disabled!");
+        msgNeedSneak        = config.getString("messages.need-sneak",        "%prefix%&eYou must sneak!");
+        msgCooldown         = config.getString("messages.cooldown",          "%prefix%&cWait &e%time% seconds&c!");
+        msgNotTree          = config.getString("messages.not-tree",          "%prefix%&cThis is not a tree!");
+        msgBlacklistedWorld = config.getString("messages.blacklisted-world", "%prefix%&cATree cannot be used in this world!");
+        msgNoPermission     = config.getString("messages.no-permission",     "%prefix%&cYou may not do that.");
+        msgOnlyPlayers      = config.getString("messages.only-players",      "%prefix%&cOnly players can use this command.");
+        msgUsage            = config.getString("messages.usage",             "%prefix%&eUsage: &f/aztree reload");
+        msgReloaded         = config.getString("messages.reloaded",          "%prefix%&aConfig reloaded successfully!");
     }
 
     /**
@@ -152,10 +164,14 @@ public class ConfigManager {
     public boolean isAztreeEnabled()       { return aztreeEnabled; }
     public boolean isRequireSneak()        { return requireSneak; }
     public int     getMaxBlocks()          { return maxBlocks; }
-    public int     getRadius()             { return radius; }
-    public int     getMaxDistance()        { return maxDistance; }
+        public int     getMaxDistance()        { return maxDistance; }
     public int     getBlocksPerTick()      { return blocksPerTick; }
-    public int     getCooldown()           { return cooldown; }
+    public double  getCooldown()           { return cooldown; }
+    public boolean isRequireAxe()          { return requireAxe; }
+    public boolean isNaturalLeavesOnly()   { return naturalLeavesOnly; }
+    public boolean isSameWoodOnly()        { return sameWoodOnly; }
+    public boolean isToolDamage()          { return toolDamage; }
+    public int     getSmartRadius()        { return smartRadius; }
     public boolean isSmartDetection()      { return smartDetection; }
 
     public Set<String> getBlacklistedWorlds() { return blacklistedWorlds; }
@@ -178,4 +194,8 @@ public class ConfigManager {
     public String getMsgCooldown()         { return msgCooldown; }
     public String getMsgNotTree()          { return msgNotTree; }
     public String getMsgBlacklistedWorld() { return msgBlacklistedWorld; }
+    public String getMsgNoPermission()     { return msgNoPermission; }
+    public String getMsgOnlyPlayers()      { return msgOnlyPlayers; }
+    public String getMsgUsage()            { return msgUsage; }
+    public String getMsgReloaded()         { return msgReloaded; }
 }
